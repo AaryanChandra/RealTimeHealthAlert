@@ -1,4 +1,9 @@
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from models import Patient, Vital, Session
+from datetime import datetime, timedelta
+import random
 
 # Folder structure
 folders = [
@@ -92,5 +97,39 @@ for path, content in files.items():
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
+session = Session()
+
+# Check if there are any patients
+if session.query(Patient).count() == 0:
+    print('Populating sample patients...')
+    patients = [
+        Patient(name=f'Patient {i}', age=random.randint(20, 80), gender=random.choice(['M', 'F']), condition='Healthy')
+        for i in range(1, 6)
+    ]
+    session.add_all(patients)
+    session.commit()
+else:
+    patients = session.query(Patient).all()
+
+# Check if there are any vitals
+if session.query(Vital).count() == 0:
+    print('Populating sample vitals...')
+    now = datetime.now()
+    for p in patients:
+        for i in range(50):
+            v = Vital(
+                patient_id=p.id,
+                heart_rate=random.randint(60, 140),
+                spo2=random.randint(88, 100),
+                temperature=round(random.uniform(36.0, 40.0), 1),
+                timestamp=now - timedelta(minutes=i*5)
+            )
+            session.add(v)
+    session.commit()
+    print('Sample vitals added.')
+else:
+    print('Vitals already exist.')
+
+print('Setup complete.')
 
 print("✅ Project setup completed. Open the folder in VS Code and run main.py.")
