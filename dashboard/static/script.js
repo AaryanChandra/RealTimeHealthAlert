@@ -597,6 +597,7 @@ function updatePatientCards(vitals) {
         </div>
       </div>
       <div class="timestamp">📅 ${latestVital.timestamp}</div>
+      <button class="trend-btn" onclick="event.stopPropagation(); openTrendModal('${patientName}')"><i class='fa-solid fa-chart-line'></i> Trends & Forecast</button>
     `;
     container.appendChild(card);
     
@@ -1199,4 +1200,94 @@ function loadAllAIPredictions() {
 
 function refreshAIPredictions() {
   loadAllAIPredictions();
+}
+
+// Trend & Forecast Modal Logic
+let trendHeartChart, trendSpo2Chart, trendTempChart;
+function openTrendModal(patientName) {
+  document.getElementById('trend-modal').style.display = 'flex';
+  document.getElementById('trend-patient-name').textContent = patientName;
+  // Clear previous error and chart content
+  document.getElementById('risk-trajectory').textContent = '';
+  const heartCanvas = document.getElementById('trend-heart-chart');
+  const spo2Canvas = document.getElementById('trend-spo2-chart');
+  const tempCanvas = document.getElementById('trend-temp-chart');
+  [heartCanvas, spo2Canvas, tempCanvas].forEach(c => { if (c) { c.getContext('2d').clearRect(0, 0, c.width, c.height); }});
+  // Fetch forecast data
+  fetch(`/forecast/${encodeURIComponent(patientName)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('risk-trajectory').textContent = data.error;
+        return;
+      }
+      // Prepare data
+      const history = data.history || [];
+      const forecast = data.forecast || {};
+      if (!history.length || !forecast.heart_rate) {
+        document.getElementById('risk-trajectory').textContent = 'No data available.';
+        return;
+      }
+      // Limit history to last 30 points for clarity
+      const N = 30;
+      const historySlice = history.slice(-N);
+      const forecastLen = forecast.heart_rate.length;
+      const heartLabels = historySlice.map(v => v.timestamp).concat(forecast.timestamps);
+      const heartData = historySlice.map(v => v.heart_rate).concat(Array(forecastLen).fill(null));
+      const heartForecastDisplay = Array(historySlice.length).fill(null).concat([null, ...forecast.heart_rate.slice(1)]);
+      // Heart
+      trendHeartChart = new Chart(heartCanvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: heartLabels,
+          datasets: [
+            { label: 'Heart Rate (History)', data: heartData, borderColor: '#ff4444', fill: false, tension: 0.4, pointRadius: 0 },
+            { label: 'Heart Rate (Forecast)', data: heartForecastDisplay, borderColor: '#a020f0', borderDash: [16,8], borderWidth: 4, fill: false, pointRadius: 0, spanGaps: true, tension: 0 }
+          ]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#222' } } }, scales: { x: { ticks: { color: '#222', maxTicksLimit: 8 } }, y: { ticks: { color: '#222' } } } }
+      });
+      // SpO2
+      const spo2Data = historySlice.map(v => v.spo2).concat(Array(forecastLen).fill(null));
+      const spo2ForecastDisplay = Array(historySlice.length).fill(null).concat([null, ...forecast.spo2.slice(1)]);
+      trendSpo2Chart = new Chart(spo2Canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: heartLabels,
+          datasets: [
+            { label: 'SpO₂ (History)', data: spo2Data, borderColor: '#00b4d8', fill: false, tension: 0.4, pointRadius: 0 },
+            { label: 'SpO₂ (Forecast)', data: spo2ForecastDisplay, borderColor: '#a020f0', borderDash: [16,8], borderWidth: 4, fill: false, pointRadius: 0, spanGaps: true, tension: 0 }
+          ]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#222' } } }, scales: { x: { ticks: { color: '#222', maxTicksLimit: 8 } }, y: { ticks: { color: '#222' } } } }
+      });
+      // Temp
+      const tempData = historySlice.map(v => v.temperature).concat(Array(forecastLen).fill(null));
+      const tempForecastDisplay = Array(historySlice.length).fill(null).concat([null, ...forecast.temperature.slice(1)]);
+      trendTempChart = new Chart(tempCanvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: heartLabels,
+          datasets: [
+            { label: 'Temperature (History)', data: tempData, borderColor: '#ffaa00', fill: false, tension: 0.4, pointRadius: 0 },
+            { label: 'Temperature (Forecast)', data: tempForecastDisplay, borderColor: '#a020f0', borderDash: [16,8], borderWidth: 4, fill: false, pointRadius: 0, spanGaps: true, tension: 0 }
+          ]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#222' } } }, scales: { x: { ticks: { color: '#222', maxTicksLimit: 8 } }, y: { ticks: { color: '#222' } } } }
+      });
+      // Risk trajectory
+      let riskTrend = 'Stable';
+      const last = forecast.heart_rate[forecast.heart_rate.length-1];
+      const first = forecast.heart_rate[0];
+      if (last > first + 10) riskTrend = '↑ Deteriorating';
+      else if (last < first - 10) riskTrend = '↓ Improving';
+      else riskTrend = '→ Stable';
+      document.getElementById('risk-trajectory').textContent = `Risk Trajectory: ${riskTrend}`;
+    })
+    .catch(() => {
+      document.getElementById('risk-trajectory').textContent = 'Error loading forecast.';
+    });
+}
+function closeTrendModal() {
+  document.getElementById('trend-modal').style.display = 'none';
 }

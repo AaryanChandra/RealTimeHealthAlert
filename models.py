@@ -38,6 +38,27 @@ class Alert(Base):
     patient = relationship("Patient", back_populates="alerts")
 
 
+class Staff(Base):
+    __tablename__ = 'staff'
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    role = Column(String)  # e.g., Doctor, Nurse
+    status = Column(String, default='available')  # available, busy, off
+
+    assignments = relationship("PatientAssignment", back_populates="staff")
+
+class PatientAssignment(Base):
+    __tablename__ = 'patient_assignments'
+    id = Column(Integer, primary_key=True)
+    patient_id = Column(Integer, ForeignKey('patients.id'))
+    staff_id = Column(Integer, ForeignKey('staff.id'))
+    assigned_at = Column(DateTime, default=datetime.now)
+    resolved = Column(Integer, default=0)  # 0 = active, 1 = resolved
+
+    staff = relationship("Staff", back_populates="assignments")
+    patient = relationship("Patient")
+
+
 # DB setup
 engine = create_engine("sqlite:///health_data.db")
 Base.metadata.create_all(engine)

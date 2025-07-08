@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-from models import Patient, Vital, Session
+from models import Patient, Vital, Session, Staff
 from datetime import datetime, timedelta
 import random
 
@@ -98,6 +98,21 @@ for path, content in files.items():
         f.write(content)
 
 session = Session()
+
+# Seed staff if not present
+if session.query(Staff).count() == 0:
+    print('Populating staff...')
+    staff_members = [
+        Staff(name='Dr. Alice Smith', role='Doctor'),
+        Staff(name='Dr. Bob Lee', role='Doctor'),
+        Staff(name='Nurse Carol White', role='Nurse'),
+        Staff(name='Nurse David Kim', role='Nurse')
+    ]
+    session.add_all(staff_members)
+    session.commit()
+    print('Staff seeded.')
+else:
+    print('Staff already exist.')
 
 # Check if there are any patients
 if session.query(Patient).count() == 0:

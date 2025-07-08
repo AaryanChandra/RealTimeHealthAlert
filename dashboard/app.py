@@ -1,13 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, render_template, jsonify, request
 import sqlite3
-import os
 import random
-import sys
 from datetime import datetime, timedelta
-
-# Add parent directory to path to import ml_predictor
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from models import Staff, PatientAssignment, Session
 from ml_predictor import predictor
+import numpy as np
+from sklearn.linear_model import LinearRegression
 
 app = Flask(__name__)
 
@@ -215,6 +216,38 @@ def train_model():
     except Exception as e:
         print(f"Error training model: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/forecast/<patient_name>")
+def forecast_vitals(patient_name):
+    try:
+        vitals = get_patient_vitals_by_name(patient_name)
+        if len(vitals) < 5:
+            return jsonify({"error": "Insufficient data for forecasting"})
+        # Prepare data for each vital
+        def parse_ts(ts):
+            if isinstance(ts, str):
+                try:
+                    return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S.%f")
+                except ValueError:
+                    return datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            return ts
+        timestamps = np.array([parse_ts(v['timestamp']).timestamp() for v in vitals]).reshape(-1, 1)
+        forecast_hours = 24
+        future_times = np.array([
+            timestamps[-1][0] + 3600 * (i+1) for i in range(forecast_hours)
+        ]).reshape(-1, 1)
+        result = {"history": vitals, "forecast": {}}
+        for vital_key in ["heart_rate", "spo2", "temperature"]:
+            y = np.array([v[vital_key] for v in vitals])
+            model = LinearRegression().fit(timestamps, y)
+            forecast = model.predict(future_times)
+            result["forecast"][vital_key] = forecast.tolist()
+        # Also return the future timestamps as ISO strings
+        result["forecast"]["timestamps"] = [datetime.fromtimestamp(ts[0]).strftime("%Y-%m-%d %H:%M:%S") for ts in future_times]
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error forecasting vitals: {e}")
+        return jsonify({"error": str(e)})
 
 if __name__ == "__main__":
     app.run(debug=True)
