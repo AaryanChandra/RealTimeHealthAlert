@@ -1,0 +1,11 @@
+services:
+- buildCommand: pip install -r requirements.txt
+  env: python
+  envVars:
+  - key: FLASK_ENV
+    value: production
+  - key: MONGODB_URI
+    value: YOUR_MONGODB_ATLAS_URI_HERE
+  name: critical-care-monitor
+  startCommand: gunicorn dashboard.mongo_app:app
+  type: web

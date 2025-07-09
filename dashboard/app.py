@@ -12,6 +12,10 @@ from sklearn.linear_model import LinearRegression
 
 app = Flask(__name__)
 
+# Deployment configuration
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+
 def get_db_path():
     # Get the path to the database file relative to the current script
     current_dir = os.path.dirname(os.path.abspath(__file__))

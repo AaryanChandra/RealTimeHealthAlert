@@ -1,0 +1,1 @@
+web: gunicorn dashboard.mongo_app:app 
